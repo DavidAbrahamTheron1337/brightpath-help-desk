@@ -57,7 +57,7 @@ test('the key travels in a private header, never in the web address, with the do
 test('a refused call counts as unavailable, and the error never contains the key', async () => {
   for (const status of [400, 403, 429, 500, 503]) {
     const fetchFn = fakeFetch(() => jsonResponse(status, { error: { message: `echo ${TEST_KEY}` } }));
-    const model = createGeminiModel({ apiKey: TEST_KEY, fetchFn });
+    const model = createGeminiModel({ apiKey: TEST_KEY, fetchFn, retryDelaysMs: [0, 0] });
 
     const error = await model.generate(REQUEST).then(
       () => assert.fail(`status ${status} should have failed`),
@@ -67,6 +67,47 @@ test('a refused call counts as unavailable, and the error never contains the key
     assert.ok(error instanceof ModelUnavailableError, `status ${status} gave ${error}`);
     assert.equal(error.message, `AI service refused the call (HTTP ${status})`);
     assert.ok(!String(error.stack).includes(TEST_KEY));
+  }
+});
+
+// Replies with each status in turn; 200 means a completed reply with the given text.
+function sequenceFetch(statuses, text = '{"found":false}') {
+  return fakeFetch(() => {
+    const status = statuses.shift();
+    return status === 200
+      ? jsonResponse(200, { status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text }] }] })
+      : jsonResponse(status, { error: { message: 'busy' } });
+  });
+}
+
+test('when Google is briefly unavailable, the call is tried again and the answer comes through', async () => {
+  const fetchFn = sequenceFetch([503, 200], 'answer text');
+  const model = createGeminiModel({ apiKey: TEST_KEY, fetchFn, retryDelaysMs: [0, 0] });
+
+  const text = await model.generate(REQUEST);
+
+  assert.equal(text, 'answer text');
+  assert.equal(fetchFn.calls.length, 2);
+});
+
+test('Google is asked at most three times; if every try fails, the AI counts as unavailable', async () => {
+  const fetchFn = sequenceFetch([503, 502, 500, 200]);
+  const model = createGeminiModel({ apiKey: TEST_KEY, fetchFn, retryDelaysMs: [0, 0] });
+
+  await assert.rejects(() => model.generate(REQUEST), {
+    name: 'ModelUnavailableError',
+    message: 'AI service refused the call (HTTP 500)',
+  });
+  assert.equal(fetchFn.calls.length, 3);
+});
+
+test('a refused key or a reached limit is not tried again', async () => {
+  for (const status of [400, 401, 403, 404, 429]) {
+    const fetchFn = sequenceFetch([status, 200]);
+    const model = createGeminiModel({ apiKey: TEST_KEY, fetchFn, retryDelaysMs: [0, 0] });
+
+    await assert.rejects(() => model.generate(REQUEST), ModelUnavailableError);
+    assert.equal(fetchFn.calls.length, 1, `status ${status} was retried`);
   }
 });
 

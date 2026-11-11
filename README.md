@@ -4,6 +4,8 @@ A small AI help desk for **BrightPath Learn**, a made-up learning platform. Type
 using only the three supplied help documents, naming the document each answer comes from. If the documents
 don't cover the question, it says so and points the member to support instead of making something up.
 
+- **Live demo:** https://brightpath-help-desk.vercel.app
+- **Walkthrough and test results:** [WALKTHROUGH.md](WALKTHROUGH.md) and the [`results`](results) folder
 - **AI model:** Google Gemini (`gemini-3.5-flash-lite`, free tier), called from the server only
 - **No dependencies:** plain Node.js, a single HTML page, and Node's built-in test runner
 
@@ -56,7 +58,9 @@ curl -X POST http://localhost:3000/api/ask -H "Content-Type: application/json" -
    - "not found", an unknown document, or no document at all gives the fixed "not in the documents" message;
    - a reply in the wrong format is not shown at all;
    - a refused call, a dropped connection, a slow reply (over 20 seconds) or a missing key gives the
-     "AI not available" message.
+     "AI not available" message;
+   - if Google says it is briefly unavailable (HTTP 500, 502, 503 or 504), the call is tried again,
+     up to three tries in total.
 
 | Folder | What it holds |
 | --- | --- |

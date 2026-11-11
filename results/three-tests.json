@@ -1,0 +1,51 @@
+{
+  "site": "https://brightpath-help-desk.vercel.app",
+  "ranAt": "2026-11-11T12:12:01.528Z",
+  "results": [
+    {
+      "test": "1. A question the documents answer",
+      "request": {
+        "question": "When is group coaching?"
+      },
+      "httpStatus": 200,
+      "reply": {
+        "status": "answered",
+        "answer": "A group coaching session takes place every Tuesday at 16:00 UTC.",
+        "sources": [
+          {
+            "id": "doc2",
+            "title": "Document 2 — Coaching and feedback"
+          }
+        ]
+      },
+      "seconds": 1.214
+    },
+    {
+      "test": "2. A question the documents do not answer",
+      "request": {
+        "question": "How much does the course cost?"
+      },
+      "httpStatus": 200,
+      "reply": {
+        "status": "not_found",
+        "answer": "That information is not in the BrightPath help documents, so I cannot answer it. Please contact support at support@brightpath.example.",
+        "sources": []
+      },
+      "seconds": 1.212
+    },
+    {
+      "test": "3. An AI failure (Simulate an AI outage ticked)",
+      "request": {
+        "question": "When is group coaching?",
+        "simulateOutage": true
+      },
+      "httpStatus": 503,
+      "reply": {
+        "status": "unavailable",
+        "answer": "The AI service is not available right now, so I cannot answer. Please try again in a minute.",
+        "sources": []
+      },
+      "seconds": 0.309
+    }
+  ]
+}
