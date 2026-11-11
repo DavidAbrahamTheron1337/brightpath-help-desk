@@ -1,0 +1,83 @@
+# BrightPath help desk
+
+A small AI help desk for **BrightPath Learn**, a made-up learning platform. Type a question and it answers
+using only the three supplied help documents, naming the document each answer comes from. If the documents
+don't cover the question, it says so and points the member to support instead of making something up.
+
+- **AI model:** Google Gemini (`gemini-3.5-flash-lite`, free tier), called from the server only
+- **No dependencies:** plain Node.js, a single HTML page, and Node's built-in test runner
+
+## Run it on your computer
+
+You need [Node.js](https://nodejs.org) 22.9 or newer.
+
+1. Get a free Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey).
+2. In this folder, create a file called `.env` containing one line:
+
+   ```
+   GEMINI_API_KEY=your-key-here
+   ```
+
+   `.env` is listed in `.gitignore`, so it is never uploaded.
+3. Start the server and open <http://localhost:3000>:
+
+   ```bash
+   npm start
+   ```
+
+Without a key the app still runs: every question gets the "AI not available" message, which is itself one of
+the failure cases.
+
+## Run the tests
+
+```bash
+npm test
+```
+
+The tests use stand-ins for Google, so they need no key and no internet connection.
+
+## Test the failure handling
+
+Tick **Simulate an AI outage (for testing)** on the page and ask anything. The server then calls Google with a
+deliberately wrong key, Google refuses the call, and the page shows a clear "AI not available" message. It is a
+real failed call, not a faked reply. The same works from the command line:
+
+```bash
+curl -X POST http://localhost:3000/api/ask -H "Content-Type: application/json" -d "{\"question\":\"When is group coaching?\",\"simulateOutage\":true}"
+```
+
+## How it works
+
+1. The page sends the question to `/api/ask`.
+2. The server sends Gemini the question, all three documents, and strict rules: use only the documents, and
+   reply in a fixed JSON format (`found`, `answer`, `source_ids`).
+3. The server checks the reply before showing anything:
+   - an answer is shown only if it cites at least one real document;
+   - "not found", an unknown document, or no document at all gives the fixed "not in the documents" message;
+   - a reply in the wrong format is not shown at all;
+   - a refused call, a dropped connection, a slow reply (over 20 seconds) or a missing key gives the
+     "AI not available" message.
+
+| Folder | What it holds |
+| --- | --- |
+| `src/domain` | The three documents and the rules for what may be shown |
+| `src/application` | Asking a question: checks the question, builds the prompt, handles an outage |
+| `src/infrastructure` | The connection to Google Gemini |
+| `src/host` | Turns web requests into questions and answers into web replies |
+| `api/ask.js` | The online entry point on Vercel |
+| `server.js` | The local server |
+| `public/index.html` | The page |
+| `test/` | The tests, including one that keeps the layers pointing inward |
+
+## Keeping the key safe
+
+- The key is never in the code or in this repository. The server reads it from `GEMINI_API_KEY`.
+- Online, it lives in Vercel's secret settings, which cannot be read back after saving.
+- It is sent to Google in a request header, never in a web address, and never sent to the browser.
+- Error messages from Google are not passed on; only the status number is kept.
+
+## Deploy your own copy on Vercel
+
+Import this repository into [Vercel](https://vercel.com) with the framework preset **Other**, add
+`GEMINI_API_KEY` as a **Secret** environment variable, and deploy. Vercel serves `public/` and runs
+`api/ask.js`. Optionally set `GEMINI_MODEL` to use a different Gemini model.

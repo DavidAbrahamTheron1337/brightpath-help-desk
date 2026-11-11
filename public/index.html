@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BrightPath Help Desk</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #5b6475; --line: #d9dde5;
+      --accent: #2456d6; --accent-text: #ffffff;
+      --ok-bg: #eef6ee; --ok-line: #8cc08f;
+      --note-bg: #fff6e5; --note-line: #e0b25a;
+      --bad-bg: #fdeeee; --bad-line: #e08a8a;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #14171d; --card: #1d222b; --text: #e8ebf1; --muted: #a3abba; --line: #333a47;
+        --accent: #6f95ff; --accent-text: #0d1220;
+        --ok-bg: #18291b; --ok-line: #3f7a45;
+        --note-bg: #2e2614; --note-line: #9a7a32;
+        --bad-bg: #321b1b; --bad-line: #a04c4c;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main { max-width: 680px; margin: 0 auto; padding: 32px 16px 48px; }
+    h1 { font-size: 1.6rem; margin: 0 0 4px; }
+    .intro { color: var(--muted); margin: 0 0 24px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+    label[for="question"] { display: block; font-weight: 600; margin-bottom: 8px; }
+    textarea {
+      width: 100%; min-height: 96px; padding: 10px 12px; resize: vertical;
+      font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-top: 12px; }
+    .toggle { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 0.95rem; }
+    button {
+      font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line);
+      background: var(--card); color: var(--text); padding: 6px 12px;
+    }
+    button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); padding: 8px 20px; font-weight: 600; }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    .examples { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); font-size: 0.95rem; }
+    #result { margin-top: 20px; border-radius: 12px; padding: 16px 20px; border: 1px solid var(--line); background: var(--card); }
+    #result[hidden] { display: none; }
+    #result.answered { background: var(--ok-bg); border-color: var(--ok-line); }
+    #result.not_found { background: var(--note-bg); border-color: var(--note-line); }
+    #result.problem { background: var(--bad-bg); border-color: var(--bad-line); }
+    #result-label { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+    #result-answer { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+    #result-sources { margin: 10px 0 0; color: var(--muted); font-size: 0.95rem; }
+    footer { margin-top: 32px; color: var(--muted); font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>BrightPath help desk</h1>
+    <p class="intro">Ask a question about BrightPath Learn, a made-up learning platform. Answers come only from its three help documents, and each answer names the document it came from.</p>
+
+    <form id="ask-form" class="card">
+      <label for="question">Your question</label>
+      <textarea id="question" name="question" maxlength="500" required placeholder="For example: When is group coaching?"></textarea>
+      <div class="row">
+        <label class="toggle"><input type="checkbox" id="simulate-outage"> Simulate an AI outage (for testing)</label>
+        <button type="submit" class="primary" id="ask-button">Ask</button>
+      </div>
+      <div class="examples">
+        <span>Try:</span>
+        <button type="button" class="example">When is group coaching?</button>
+        <button type="button" class="example">How much does the course cost?</button>
+      </div>
+    </form>
+
+    <section id="result" aria-live="polite" hidden>
+      <p id="result-label"></p>
+      <p id="result-answer"></p>
+      <p id="result-sources" hidden></p>
+    </section>
+
+    <footer>Practical test build. The AI is Google Gemini; the AI key stays on the server.</footer>
+  </main>
+
+  <script>
+    const form = document.getElementById('ask-form');
+    const question = document.getElementById('question');
+    const simulateOutage = document.getElementById('simulate-outage');
+    const askButton = document.getElementById('ask-button');
+    const result = document.getElementById('result');
+    const resultLabel = document.getElementById('result-label');
+    const resultAnswer = document.getElementById('result-answer');
+    const resultSources = document.getElementById('result-sources');
+
+    const LABELS = {
+      answered: ['Answer', 'answered'],
+      not_found: ['Not in the documents', 'not_found'],
+      invalid: ['Check your question', 'problem'],
+      unavailable: ['AI not available', 'problem'],
+      unreliable: ['AI reply not shown', 'problem'],
+      error: ['Something went wrong', 'problem'],
+    };
+
+    function show(data) {
+      const [label, style] = LABELS[data.status] || LABELS.error;
+      result.className = style;
+      resultLabel.textContent = label;
+      resultAnswer.textContent = data.answer;
+      const sources = Array.isArray(data.sources) ? data.sources : [];
+      resultSources.hidden = sources.length === 0;
+      resultSources.textContent = sources.length
+        ? (sources.length === 1 ? 'Source: ' : 'Sources: ') + sources.map((s) => s.title).join('; ')
+        : '';
+      result.hidden = false;
+    }
+
+    async function ask() {
+      const text = question.value.trim();
+      if (!text) { question.focus(); return; }
+      askButton.disabled = true;
+      askButton.textContent = 'Asking...';
+      try {
+        const response = await fetch('/api/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: text, simulateOutage: simulateOutage.checked }),
+        });
+        const data = await response.json().catch(() => null);
+        show(data && typeof data.answer === 'string'
+          ? data
+          : { status: 'error', answer: 'The help desk server had a problem (HTTP ' + response.status + '). Please try again.' });
+      } catch {
+        show({ status: 'error', answer: 'Could not reach the help desk server. Check your internet connection and try again.' });
+      } finally {
+        askButton.disabled = false;
+        askButton.textContent = 'Ask';
+      }
+    }
+
+    form.addEventListener('submit', (event) => { event.preventDefault(); ask(); });
+    question.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); ask(); }
+    });
+    document.querySelectorAll('.example').forEach((button) => {
+      button.addEventListener('click', () => { question.value = button.textContent; ask(); });
+    });
+  </script>
+</body>
+</html>

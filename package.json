@@ -1,0 +1,12 @@
+{
+  "name": "brightpath-help-desk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A small AI help desk that answers questions from three BrightPath Learn documents.",
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "test": "node --test",
+    "check": "node --test"
+  }
+}

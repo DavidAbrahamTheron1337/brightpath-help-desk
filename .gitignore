@@ -1,0 +1,6 @@
+# Keys and local settings never leave this computer
+.env
+.env.*
+.vercel
+
+node_modules

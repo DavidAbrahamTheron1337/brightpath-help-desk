@@ -1,0 +1,67 @@
+// Talks to Google's Gemini AI over the internet. The only file that knows Google's request format.
+// Request format checked against Google's Interactions API documentation on 2026-11-11.
+
+import { ModelUnavailableError } from '../application/modelPort.js';
+
+const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
+const API_REVISION = '2026-05-20';
+export const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
+
+const DEFAULT_TIMEOUT_MS = 20_000;
+
+export function createGeminiModel({
+  apiKey,
+  model = DEFAULT_MODEL,
+  fetchFn = globalThis.fetch,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+}) {
+  return {
+    async generate({ systemInstruction, input, responseSchema }) {
+      if (!apiKey) {
+        throw new ModelUnavailableError('No AI key is set on the server');
+      }
+      let response;
+      try {
+        response = await fetchFn(ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'x-goog-api-key': apiKey,
+            'Content-Type': 'application/json',
+            'Api-Revision': API_REVISION,
+          },
+          body: JSON.stringify({
+            model,
+            system_instruction: systemInstruction,
+            input,
+            response_format: { type: 'text', mime_type: 'application/json', schema: responseSchema },
+            store: false,
+          }),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+      } catch (error) {
+        throw error?.name === 'TimeoutError'
+          ? new ModelUnavailableError('The AI service took too long to reply')
+          : new ModelUnavailableError('Could not reach the AI service');
+      }
+      // Google's error text is never passed on: only the status number leaves this file.
+      if (!response.ok) {
+        throw new ModelUnavailableError(`AI service refused the call (HTTP ${response.status})`);
+      }
+      const text = extractText(await response.json().catch(() => null));
+      if (!text) {
+        throw new ModelUnavailableError('The AI service sent back an empty reply');
+      }
+      return text;
+    },
+  };
+}
+
+function extractText(body) {
+  const steps = Array.isArray(body?.steps) ? body.steps : [];
+  return steps
+    .filter((step) => step?.type === 'model_output' && Array.isArray(step.content))
+    .flatMap((step) => step.content)
+    .filter((part) => part?.type === 'text' && typeof part.text === 'string')
+    .map((part) => part.text)
+    .join('');
+}
