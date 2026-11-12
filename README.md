@@ -67,8 +67,9 @@ curl -X POST http://localhost:3000/api/ask -H "Content-Type: application/json" -
    - an answer is shown only if it cites at least one real document;
    - "not found", an unknown document, or no document at all gives the fixed "not in the documents" message;
    - a reply in the wrong format is not shown at all;
-   - a refused call, a dropped connection, a slow reply (over 20 seconds) or a missing key gives the
+   - a refused call, a dropped connection, a call that keeps stalling or a missing key gives the
      "AI not available" message;
+   - a call that stalls for more than 12 seconds is tried again, up to three tries in total;
    - if Google says it is briefly unavailable (HTTP 500, 502, 503 or 504), the call is tried again,
      up to three tries in total.
 
@@ -78,8 +79,8 @@ curl -X POST http://localhost:3000/api/ask -H "Content-Type: application/json" -
 | `src/application` | Asking a question: checks the question, builds the prompt, handles an outage |
 | `src/infrastructure` | The connection to Google Gemini |
 | `src/host` | Turns web requests into questions and answers into web replies |
-| `api/ask.js` | The online entry point on Vercel |
-| `server.js` | The local server |
+| `server.js` | Runs the site, both on Vercel and on your computer |
+| `scripts/live-check.mjs` | The live answer check |
 | `public/index.html` | The page |
 | `test/` | The tests, including one that keeps the layers pointing inward |
 
@@ -92,6 +93,6 @@ curl -X POST http://localhost:3000/api/ask -H "Content-Type: application/json" -
 
 ## Deploy your own copy on Vercel
 
-Import this repository into [Vercel](https://vercel.com) with the framework preset **Other**, add
-`GEMINI_API_KEY` as a **Secret** environment variable, and deploy. Vercel serves `public/` and runs
-`api/ask.js`. Optionally set `GEMINI_MODEL` to use a different Gemini model.
+Import this repository into [Vercel](https://vercel.com), add `GEMINI_API_KEY` as a **Secret** environment
+variable, and deploy. Vercel detects `server.js` and runs it as the site's single function, serving both the
+page and the question service. Optionally set `GEMINI_MODEL` to use a different Gemini model.

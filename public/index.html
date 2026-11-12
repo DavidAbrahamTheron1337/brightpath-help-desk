@@ -72,6 +72,7 @@
         <span>Try:</span>
         <button type="button" class="example">When is group coaching?</button>
         <button type="button" class="example">How much does the course cost?</button>
+        <button type="button" class="example">I watched Lesson 1 but it still says incomplete. What do I do?</button>
       </div>
     </form>
 
@@ -84,7 +85,9 @@
     <footer>Practical test build. The AI is Google Gemini; the AI key stays on the server.</footer>
   </main>
 
-  <script>
+  <script type="module">
+    import { createAsker } from './app.js';
+
     const form = document.getElementById('ask-form');
     const question = document.getElementById('question');
     const simulateOutage = document.getElementById('simulate-outage');
@@ -116,27 +119,24 @@
       result.hidden = false;
     }
 
-    async function ask() {
-      const text = question.value.trim();
-      if (!text) { question.focus(); return; }
-      askButton.disabled = true;
-      askButton.textContent = 'Asking...';
-      try {
-        const response = await fetch('/api/ask', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: text, simulateOutage: simulateOutage.checked }),
-        });
-        const data = await response.json().catch(() => null);
-        show(data && typeof data.answer === 'string'
-          ? data
-          : { status: 'error', answer: 'The help desk server had a problem (HTTP ' + response.status + '). Please try again.' });
-      } catch {
-        show({ status: 'error', answer: 'Could not reach the help desk server. Check your internet connection and try again.' });
-      } finally {
+    const asker = createAsker({
+      fetchFn: (url, init) => fetch(url, init),
+      onStart() {
+        askButton.disabled = true;
+        askButton.textContent = 'Asking...';
+        result.hidden = true; // never leave an older answer under a newer question
+      },
+      onShow: show,
+      onDone() {
         askButton.disabled = false;
         askButton.textContent = 'Ask';
-      }
+      },
+    });
+
+    function ask() {
+      const text = question.value.trim();
+      if (!text) { question.focus(); return; }
+      asker(text, simulateOutage.checked);
     }
 
     form.addEventListener('submit', (event) => { event.preventDefault(); ask(); });

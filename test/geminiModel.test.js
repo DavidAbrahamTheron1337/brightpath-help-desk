@@ -124,10 +124,31 @@ test('a dropped connection or a slow AI counts as unavailable', async () => {
     name: 'ModelUnavailableError',
     message: 'Could not reach the AI service',
   });
-  await assert.rejects(() => createGeminiModel({ apiKey: TEST_KEY, fetchFn: slow }).generate(REQUEST), {
-    name: 'ModelUnavailableError',
-    message: 'The AI service took too long to reply',
+  await assert.rejects(
+    () => createGeminiModel({ apiKey: TEST_KEY, fetchFn: slow, retryDelaysMs: [0, 0] }).generate(REQUEST),
+    { name: 'ModelUnavailableError', message: 'The AI service took too long to reply' },
+  );
+  assert.equal(slow.calls.length, 3, 'a stalled call is tried three times in total before giving up');
+});
+
+test('a call that stalls is tried again, and the answer comes through when the next try is quick', async () => {
+  let tries = 0;
+  const fetchFn = fakeFetch(() => {
+    tries += 1;
+    if (tries === 1) throw new DOMException('The operation timed out.', 'TimeoutError');
+    return jsonResponse(200, { status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'ok' }] }] });
   });
+
+  const text = await createGeminiModel({ apiKey: TEST_KEY, fetchFn, retryDelaysMs: [0, 0] }).generate(REQUEST);
+
+  assert.equal(text, 'ok');
+  assert.equal(tries, 2);
+});
+
+test('each try waits at most 12 seconds for Google', async () => {
+  const { DEFAULT_TIMEOUT_MS } = await import('../src/infrastructure/geminiModel.js');
+
+  assert.equal(DEFAULT_TIMEOUT_MS, 12_000);
 });
 
 test('a reply with no text in it counts as unavailable', async () => {

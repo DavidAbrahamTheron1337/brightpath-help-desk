@@ -1,5 +1,5 @@
 // Turns a web request into a question for the help desk, and the answer back into a web reply.
-// Used by both the online version (api/ask.js) and the local server (server.js).
+// Used by server.js, which runs the site both on Vercel and on this computer.
 // This is the only place the pieces are wired together; the key is read here and passed straight to the
 // Google connection. It is never put into a reply.
 

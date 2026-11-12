@@ -11,14 +11,17 @@
   never takes the AI's word for it: an answer is shown only if it cites a real document. An answer citing no
   document, or a document that doesn't exist, is replaced by the "not in the documents" message.
 - A reply from the AI in the wrong format is never shown.
-- If the AI can't be reached, refuses the call, takes more than 20 seconds, or no key is set, the page shows a
-  clear "AI not available" message instead of an error.
-- If Google is only briefly unavailable, the server quietly tries again, up to three tries in total.
+- If the AI can't be reached, refuses the call, keeps stalling, or no key is set, the page shows a clear
+  "AI not available" message instead of an error.
+- If Google is only briefly unavailable, or a call stalls for more than 12 seconds, the server quietly tries
+  again, up to three tries in total.
+- Only the answer to the latest question is shown, even if someone asks again before an answer arrives.
+- The page opens from links with tracking codes added after "?".
 - **Testing the failure:** tick "Simulate an AI outage (for testing)" and ask anything. The server then calls
   Google with a deliberately wrong key. Google really refuses it, so the failure tested is a genuine failed call.
-- 26 automated tests cover the rules, the AI's instructions, the outage handling, the retries and the Google
-  connection. They use stand-ins for Google, so they run with no key and no internet. One test also checks the
-  code layers only depend inward.
+- 36 automated tests cover the rules, the AI's instructions, the outage handling, the retries, the Google
+  connection, the page's question code and the site's addresses. They use stand-ins for Google, so they run
+  with no key and no internet. One test also checks the code layers only depend inward.
 - A live answer check (`scripts/live-check.mjs`) asks a running site 23 questions and compares each reply with
   the answer the documents call for, written down before the check was run.
 - The AI key is never in the code. On the live site it sits in Vercel's secret settings, only the server uses
@@ -58,6 +61,21 @@ not against all three. You found the same gap with "I watched Lesson 1 but it st
   That matches Document 3's own wording, but it skips the quicker fix. Three different instructions did not
   change it with this small free model.
 
+**Three more faults found while proving it, all fixed (12 Nov):** each was tested first, tried on a private
+copy, then put live and checked by hand.
+
+- **Links with tracking codes:** the page answered "Not found" if anything came after "?" in the address (as
+  email and Facebook links often add). It now ignores those extras.
+- **Stalled calls:** now and then a call to Google hung past 20 seconds while the next one answered in 2. Each
+  try now waits 12 seconds, and a stalled call is tried again.
+- **An older answer under a newer question:** asking a second question before the first answer arrived could
+  show the first answer under the second question. Only the latest question's answer is shown now. The
+  Lesson 1 question is also one of the page's example buttons.
+
+**Final checks on the live site (12 Nov, 16:47):** 36 of 36 tests pass; 22 of 23 live questions answered as the
+documents call for ([`results/live-check-final.json`](results/live-check-final.json)); every check by hand
+passed. All of it on one page: [`results/proof-sheet.png`](results/proof-sheet.png).
+
 ## What I built myself, and the tools I used
 
 I built this with **Claude Code** (Anthropic's AI coding tool), which wrote the code, tests and README from my
@@ -87,3 +105,6 @@ something that isn't in it.
 - Google's free plan for this model allows 15 questions a minute and 500 a day. Past that, the page shows the
   "AI not available" message until the limit resets. I hit the per-minute limit once while testing quickly.
 - The demo is public and has no limit per visitor, so one person could use up the day's allowance.
+- Google's free service is sometimes overloaded. On 12 Nov it briefly answered "service unavailable" or stalled
+  on several calls in a row, for both of the free models I tried. The page then says the AI is not available;
+  in every case I saw, asking again a little later worked.

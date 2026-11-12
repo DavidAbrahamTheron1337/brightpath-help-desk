@@ -7,9 +7,10 @@ const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions'
 const API_REVISION = '2026-05-20';
 export const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 
-const DEFAULT_TIMEOUT_MS = 20_000;
-// Google sometimes turns a call away for a moment ("service unavailable"). Those calls are tried again
-// after these pauses. A refused key, a reached limit or a timeout is never retried.
+// Most answers arrive in 1 to 8 seconds; now and then a call stalls for longer, while the next one is quick.
+export const DEFAULT_TIMEOUT_MS = 12_000;
+// Google sometimes turns a call away for a moment ("service unavailable") or stalls. Those calls are tried
+// again after these pauses. A refused key or a reached limit is never retried.
 const DEFAULT_RETRY_DELAYS_MS = [500, 1500];
 const TEMPORARY_STATUSES = new Set([500, 502, 503, 504]);
 
@@ -45,7 +46,7 @@ export function createGeminiModel({
       });
     } catch (error) {
       throw error?.name === 'TimeoutError'
-        ? new ModelUnavailableError('The AI service took too long to reply')
+        ? new TemporaryFailure('The AI service took too long to reply')
         : new ModelUnavailableError('Could not reach the AI service');
     }
     // Google's error text is never passed on: only the status number leaves this file.
