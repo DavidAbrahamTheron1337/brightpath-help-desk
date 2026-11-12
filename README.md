@@ -38,6 +38,16 @@ npm test
 
 The tests use stand-ins for Google, so they need no key and no internet connection.
 
+## Check the answers on a running site
+
+```bash
+node scripts/live-check.mjs https://brightpath-help-desk.vercel.app results/live-check.json
+```
+
+This asks the real AI 23 questions, five seconds apart, and compares each reply with the answer the documents
+call for: the right documents cited, the key facts present, "not in the documents" where they don't cover it,
+and the outage and bad-question replies. It prints pass or fail for each and saves every reply.
+
 ## Test the failure handling
 
 Tick **Simulate an AI outage (for testing)** on the page and ask anything. The server then calls Google with a

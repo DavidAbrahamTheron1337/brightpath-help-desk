@@ -16,9 +16,11 @@
 - If Google is only briefly unavailable, the server quietly tries again, up to three tries in total.
 - **Testing the failure:** tick "Simulate an AI outage (for testing)" and ask anything. The server then calls
   Google with a deliberately wrong key. Google really refuses it, so the failure tested is a genuine failed call.
-- 24 automated tests cover the rules, the outage handling, the retries and the Google connection. They use
-  stand-ins for Google, so they run with no key and no internet. One test also checks the code layers only
-  depend inward.
+- 26 automated tests cover the rules, the AI's instructions, the outage handling, the retries and the Google
+  connection. They use stand-ins for Google, so they run with no key and no internet. One test also checks the
+  code layers only depend inward.
+- A live answer check (`scripts/live-check.mjs`) asks a running site 23 questions and compares each reply with
+  the answer the documents call for, written down before the check was run.
 - The AI key is never in the code. On the live site it sits in Vercel's secret settings, only the server uses
   it, and it is sent to Google in a request header, never in a web address. I checked in the browser that the
   page only ever talks to its own server and never receives anything key-like.
@@ -35,14 +37,26 @@ Run by hand on the live site on 11 November 2026. The exact replies are saved in
 | 2. Not in the documents | How much does the course cost? | "That information is not in the BrightPath help documents, so I cannot answer it. Please contact support at support@brightpath.example." No source, nothing made up. |
 | 3. AI failure | When is group coaching? (with "Simulate an AI outage" ticked) | "The AI service is not available right now, so I cannot answer. Please try again in a minute." |
 
-Beyond these three, I ran 16 questions through the live site and all were right: ten answered from the
-correct document (one needed two documents), five correctly marked as not covered (price, refunds, job
-placement, an unrelated question, and an attempt to make it say the course costs $10), and "Can I send you my
-password?" got "never send a password" plus the Forgot password steps.
+**A problem I found and fixed (11 Nov):** on the first run of extra questions, 3 of 15 came back "AI not
+available". The live site's log showed Google had replied "service unavailable" (HTTP 503) to those calls. I
+added the retry for that reply, tested it first, and on the rerun no question hit that error again.
 
-**A problem I found and fixed:** on the first run, 3 of 15 questions came back "AI not available". The live
-site's log showed Google had replied "service unavailable" (HTTP 503) to those calls. I added the retry for
-that reply, tested it first, and on the rerun no question hit that error again.
+**A correction, and a second fix (12 Nov):** on 11 Nov I reported that all 16 extra questions were right. One
+was not as good as it should have been: "My lesson progress is wrong" got only "contact support", although
+Document 1 gives a quicker fix (select Mark complete). I had checked each answer against the document it cited,
+not against all three. You found the same gap with "I watched Lesson 1 but it still says incomplete".
+
+- **The fix:** the AI is now told to look in every document for a step the member can take themselves and give
+  it first, then say when to contact support, and that lines written for the help desk are rules to follow,
+  not answers.
+- **How it was tested:** two new automated tests first, then a private copy of the site before going live,
+  then the live site. The expected answer for each question is now written down in `scripts/live-check.mjs`.
+- **Result:** your Lesson 1 question now gets "select Mark complete ... if it's still wrong, contact support"
+  with Documents 1 and 3, every time I asked it (3 of 3 on the private copy, then live, by hand and in the
+  check). Live check after the fix: 22 of 23 ([`results/live-check-after-fix.json`](results/live-check-after-fix.json)).
+- **Still not perfect:** "My lesson progress is wrong" still gets only Document 3's "contact support" answer.
+  That matches Document 3's own wording, but it skips the quicker fix. Three different instructions did not
+  change it with this small free model.
 
 ## What I built myself, and the tools I used
 
@@ -59,7 +73,11 @@ test runner. Hosting is Vercel's free plan. The AI model is Google `gemini-3.5-f
 
 ## What I would improve
 
-Check that each answer is actually supported by the document it cites. Today the server checks that the cited
+Get the last answer right: when a member says their progress is wrong, always offer "select Mark complete"
+before support. The free model ignores the instruction for that phrasing, so the next step would be a larger
+model or a second pass that adds any self-help step the first answer missed, checked by the live answer check.
+
+Also check that each answer is actually supported by the document it cites. Today the server checks that the cited
 document exists, but it trusts the AI that the answer matches that document. A second check, comparing the
 answer against the cited document's text, would catch an answer that names the right document but adds
 something that isn't in it.
